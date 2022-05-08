@@ -19,21 +19,23 @@ string fileHash;
     doc = JsonNode.Parse(fileBytes);
     fileHash = Convert.ToHexString(MD5.Create().ComputeHash(fileBytes));
 }
-var layouts = doc.Root["custom-layouts"].AsArray()
-    .Select(l => l.AsObject())
-    .Where(l => l["type"].GetValue<string>() == "canvas")
+
+var layouts = (doc?.Root ?? throw new InvalidOperationException("Expected root element"))
+    .GetArray("custom-layouts")
+    .Where(l => l?.GetValue<string>("type") == "canvas")
     .ToList();
+
 if (layouts.Count == 0)
 {
     Console.Error.WriteLine("No canvas type layouts found");
     return 2;
 }
 
-// selet layout
-JsonObject targetLayout;
+// select layout
+JsonNode targetLayout;
 if (layouts.Count == 1)
 {
-    targetLayout = layouts[0];
+    targetLayout = layouts[0]!;
 }
 else
 {
@@ -42,20 +44,20 @@ else
     {
         for (var i = 0; i < layouts.Count; i++)
         {
-            Console.WriteLine($"[{i + 1}] {layouts[i]["name"].GetValue<string>()}");
+            Console.WriteLine($"[{i + 1}] {layouts[i].GetValue<string>("name")}");
         }
 
         Console.Write($"Which layout to fill? [1-{layouts.Count}] > ");
         Console.Out.Flush();
     } while (!int.TryParse(Console.ReadLine(), out index) || index < 1 || index > layouts.Count);
-    targetLayout = layouts[index - 1];
+    targetLayout = layouts[index - 1]!;
 }
 
 // dump info
-var info = targetLayout["info"];
-var name = targetLayout["name"].GetValue<string>();
-int refWidth = info["ref-width"].GetValue<int>();
-int refHeight = info["ref-height"].GetValue<int>();
+var info = targetLayout["info"] ?? throw new InvalidOperationException("Expected object: info");
+string name = targetLayout.GetValue<string>("name");
+int refWidth = info.GetValue<int>("ref-width");
+int refHeight = info.GetValue<int>("ref-height");
 Console.WriteLine($"Updating {name} ({refWidth}x{refHeight})");
 
 // perform backup if required
@@ -84,19 +86,18 @@ var zones = new[] {.3, .5, .7}
     })
     // include full width
     .Prepend(new {X = 0, width = refWidth})
-    // zones split into rows
-    .SelectMany(z => new[]
+    // combine columns and rows into final json
+    .SelectMany(_ => new[]
     {
-        new {z.X, Y = 0, z.width, height = refHeight}, // full height
-        new {z.X, Y = 0, z.width, height = halfHeight}, // top half
-        new {z.X, Y = halfHeight, z.width, height = halfHeight}, // bottom half
-    })
-    .Select(z => new JsonObject
+        new {Y = 0, height = refHeight}, // full height
+        new {Y = 0, height = halfHeight}, // top half
+        new {Y = halfHeight, height = halfHeight}, // bottom half
+    }, (col, row) => new JsonObject
     {
-        ["X"] = JsonValue.Create(z.X),
-        ["Y"] = JsonValue.Create(z.Y),
-        ["width"] = JsonValue.Create(z.width),
-        ["height"] = JsonValue.Create(z.height)
+        ["X"] = JsonValue.Create(col.X),
+        ["Y"] = JsonValue.Create(row.Y),
+        ["width"] = JsonValue.Create(col.width),
+        ["height"] = JsonValue.Create(row.height)
     })
     .ToArray<JsonNode>();
 
@@ -112,3 +113,15 @@ using (var writer = new Utf8JsonWriter(fs, new JsonWriterOptions {Indented = tru
 Console.WriteLine("Done, restart PowerToys to apply changes.");
 
 return 0;
+
+internal static class JsonExtensions
+{
+    internal static JsonArray GetArray(this JsonNode? obj, string propName)
+        => obj?[propName] as JsonArray
+           ?? throw new InvalidOperationException("Expected array: " + propName);
+
+    internal static T GetValue<T>(this JsonNode? obj, string propName)
+        => obj?[propName] is { } o
+            ? o.GetValue<T>()
+            : throw new InvalidOperationException("Expected value: " + propName);
+}
