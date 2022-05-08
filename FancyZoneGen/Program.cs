@@ -76,12 +76,14 @@ int halfHeight = refHeight / 2;
 var zones = new[] {.3, .5, .7}
     // column locations in pixels
     .Select(pct => (int) (pct * refWidth))
-    // full height zones
+    // partial width, full height zones
     .SelectMany(px => new[]
     {
         new {X = 0, width = px}, // left
         new {X = px, width = refWidth - px} // right
     })
+    // include full width
+    .Prepend(new {X = 0, width = refWidth})
     // zones split into rows
     .SelectMany(z => new[]
     {
@@ -89,8 +91,6 @@ var zones = new[] {.3, .5, .7}
         new {z.X, Y = 0, z.width, height = halfHeight}, // top half
         new {z.X, Y = halfHeight, z.width, height = halfHeight}, // bottom half
     })
-    // add full screen
-    .Prepend(new {X = 0, Y = 0, width = refWidth, height = refHeight})
     .Select(z => new JsonObject
     {
         ["X"] = JsonValue.Create(z.X),
