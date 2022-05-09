@@ -94,10 +94,10 @@ var zones = new[] {.3, .5, .7}
         new {Y = halfHeight, height = halfHeight}, // bottom half
     }, (col, row) => new JsonObject
     {
-        ["X"] = JsonValue.Create(col.X),
-        ["Y"] = JsonValue.Create(row.Y),
-        ["width"] = JsonValue.Create(col.width),
-        ["height"] = JsonValue.Create(row.height)
+        ["X"] = JsonValue.Create(col.X - 1), // 1px excess to remove gaps between zones
+        ["Y"] = JsonValue.Create(row.Y - 1),
+        ["width"] = JsonValue.Create(col.width + 2),
+        ["height"] = JsonValue.Create(row.height + 2)
     })
     .ToArray<JsonNode>();
 
